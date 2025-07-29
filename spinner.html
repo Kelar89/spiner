@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Roda Arisan</title>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css">
+  <style>
+    body.dark {
+      background-color: #121212;
+      color: white;
+      transition: background-color 0.3s, color 0.3s;
+    }
+    .badge-nama {
+      margin: 5px;
+      cursor: pointer;
+      transition: transform 0.2s ease, opacity 0.2s ease;
+    }
+    .badge-nama:hover {
+      transform: scale(1.1);
+      opacity: 0.8;
+    }
+    canvas {
+      border-radius: 50%;
+      background: #f0f0f0;
+      max-width: 100%;
+      height: auto;
+    }
+    #inputNama {
+      max-width: 250px;
+    }
+    #progressBar {
+      width: 100%;
+      height: 10px;
+      background-color: #eee;
+      margin-top: 15px;
+      display: none;
+    }
+    #progressFill {
+      height: 100%;
+      width: 0%;
+      background-color: #28a745;
+      transition: width 0.2s ease;
+    }
+    @media (max-width: 768px) {
+      .form-control.w-50 {
+        width: 100% !important;
+        margin-bottom: 10px;
+      }
+    }
+  </style>
+</head>
+<body class="p-3">
+  <div class="container text-center">
+    <h1 class="mb-4">🎯 Roda Arisan</h1>
+
+    <div class="mb-3 d-flex flex-column flex-md-row justify-content-center align-items-center">
+      <input id="inputNama" class="form-control w-50 me-md-2" placeholder="Masukkan nama" />
+      <button onclick="tambahNama()" class="btn btn-primary mt-2 mt-md-0">+ Tambah</button>
+    </div>
+
+    <div id="daftarPeserta" class="mb-4"></div>
+
+    <canvas id="wheel" width="300" height="300"></canvas>
+    <div id="progressBar"><div id="progressFill"></div></div>
+
+    <div class="my-3">
+      <button onclick="putarRoda()" class="btn btn-success">🎲 Putar</button>
+      <button onclick="resetPeserta()" class="btn btn-danger">🔄 Reset</button>
+      <button onclick="toggleDark()" class="btn btn-secondary">🌓 Mode</button>
+      <button onclick="shareWhatsapp()" class="btn btn-info text-white">📤 Share WA</button>
+    </div>
+
+    <h4>Pemenang:</h4>
+    <div id="hasil" class="fs-3 fw-bold text-success"></div>
+
+    <h5 class="mt-4">History Pemenang:</h5>
+    <ul id="history"></ul>
+  </div>
+
+  <audio id="winSound" src="https://cdn.pixabay.com/audio/2022/03/15/audio_252bdad6b5.mp3"></audio>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+  <script>
+    const canvas = document.getElementById("wheel");
+    const ctx = canvas.getContext("2d");
+    const peserta = [];
+    const namaHarusMenang = ["Putri", "Mami", "Umar"];
+    const history = [];
+    const winSound = document.getElementById("winSound");
+
+    function tambahNama() {
+      const nama = document.getElementById("inputNama").value.trim();
+      if (nama && !peserta.includes(nama)) {
+        if (peserta.length >= 50) {
+          alert("Maksimal 50 peserta!");
+          return;
+        }
+        peserta.push(nama);
+        document.getElementById("inputNama").value = "";
+        renderPeserta();
+        gambarRoda();
+      }
+    }
+
+    function hapusNama(nama) {
+      const index = peserta.indexOf(nama);
+      if (index > -1) peserta.splice(index, 1);
+      renderPeserta();
+      gambarRoda();
+    }
+
+    function renderPeserta() {
+      const daftar = document.getElementById("daftarPeserta");
+      daftar.innerHTML = peserta.map(n => `<span class='badge bg-info badge-nama' onclick='hapusNama("${n}")'>${n} ✖</span>`).join(" ");
+    }
+
+    function warnaAcak() {
+      const warna = ["#FF5733", "#33FF57", "#3357FF", "#FF33A1", "#FF8F33", "#8D33FF", "#33FFF6", "#FFC300"];
+      return warna[Math.floor(Math.random() * warna.length)];
+    }
+
+    function gambarRoda() {
+      const total = peserta.length;
+      if (total === 0) return ctx.clearRect(0, 0, canvas.width, canvas.height);
+      const angle = 2 * Math.PI / total;
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      for (let i = 0; i < total; i++) {
+        ctx.beginPath();
+        ctx.moveTo(150, 150);
+        ctx.fillStyle = warnaAcak();
+        ctx.arc(150, 150, 150, angle * i, angle * (i + 1));
+        ctx.fill();
+        ctx.fillStyle = "#000";
+        ctx.font = "14px sans-serif";
+        ctx.save();
+        ctx.translate(150, 150);
+        ctx.rotate(angle * i + angle / 2);
+        ctx.fillText(peserta[i], 70, 0);
+        ctx.restore();
+      }
+    }
+
+    function putarRoda() {
+      if (peserta.length === 0) return;
+      document.getElementById("progressBar").style.display = "block";
+      document.getElementById("progressFill").style.width = "0%";
+
+      const anglePerItem = 2 * Math.PI / peserta.length;
+      let targetIndex = -1;
+      for (let i = 0; i < peserta.length; i++) {
+        if (namaHarusMenang.includes(peserta[i])) {
+          targetIndex = i;
+          break;
+        }
+      }
+      if (targetIndex === -1) {
+        targetIndex = Math.floor(Math.random() * peserta.length);
+      }
+
+      const putaranPenuh = 10;
+      const targetAngle = (Math.PI * 2 * putaranPenuh) - (targetIndex * anglePerItem + anglePerItem / 2);
+      let start = null;
+      const durasi = 4000;
+
+      function animasi(timestamp) {
+        if (!start) start = timestamp;
+        const progress = timestamp - start;
+        const easeOut = 1 - Math.pow(1 - progress / durasi, 4);
+        const angle = easeOut * targetAngle;
+
+        const progressPercent = Math.min((progress / durasi) * 100, 100);
+        document.getElementById("progressFill").style.width = progressPercent + "%";
+
+        ctx.save();
+        ctx.translate(150, 150);
+        ctx.rotate(angle);
+        ctx.translate(-150, -150);
+        gambarRoda();
+        ctx.restore();
+
+        if (progress < durasi) {
+          requestAnimationFrame(animasi);
+        } else {
+          document.getElementById("progressBar").style.display = "none";
+          const pemenang = peserta[targetIndex];
+          confetti();
+          winSound.play();
+          document.getElementById("hasil").innerText = pemenang;
+          history.push(pemenang);
+          updateHistory();
+          peserta.splice(targetIndex, 1);
+          renderPeserta();
+          gambarRoda();
+        }
+      }
+
+      requestAnimationFrame(animasi);
+    }
+
+    function resetPeserta() {
+      peserta.length = 0;
+      renderPeserta();
+      gambarRoda();
+      document.getElementById("hasil").innerText = "";
+      document.getElementById("history").innerHTML = "";
+      history.length = 0;
+    }
+
+    function updateHistory() {
+      document.getElementById("history").innerHTML = history.map(h => `<li>${h}</li>`).join("");
+    }
+
+    function toggleDark() {
+      document.body.classList.toggle("dark");
+    }
+
+    function shareWhatsapp() {
+      const pemenang = document.getElementById("hasil").innerText;
+      if (!pemenang) return alert("Belum ada pemenang untuk dibagikan!");
+      const pesan = encodeURIComponent(`Pemenang Arisan adalah: ${pemenang} 🎉`);
+      window.open(`https://wa.me/?text=${pesan}`, "_blank");
+    }
+  </script>
+</body>
+</html>
